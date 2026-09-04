@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>드레이프 미러</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap">
+<style>
+  :root{
+    --ink:#0D0D0F;
+    --ink-2:#161619;
+    --fg:#F3F2EF;
+    --fg-dim:#9B99A2;
+    --line:rgba(255,255,255,.14);
+    --line-strong:rgba(255,255,255,.32);
+    --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    --serif:"Gowun Batang","Nanum Myeongjo",Georgia,serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",monospace;
+    --drape:#FF7F6E;
+    --drape-top:52%;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--fg);
+    font-family:var(--sans);
+    font-weight:300;
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none;
+  }
+  .app{
+    position:relative;
+    width:100%;
+    height:100dvh;
+    min-height:520px;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    background:var(--ink);
+  }
+
+  /* ---------- stage: camera + drape ---------- */
+  .stage{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--ink-2);touch-action:pan-y}
+  #cam,#shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  #cam{transform:scaleX(-1)}
+  #shot{display:none}
+  .stage.photo #cam{display:none}
+  .stage.photo #shot{display:block}
+
+  .drape{
+    position:absolute;left:0;right:0;top:var(--drape-top);bottom:0;
+    display:flex;flex-direction:column;
+    filter:drop-shadow(0 -14px 22px rgba(0,0,0,.45));
+    z-index:2;
+  }
+  .drape .neck{display:block;width:100%;height:76px;flex:none}
+  .drape .neck path{fill:var(--drape)}
+  .drape .body{flex:1;background:var(--drape);min-height:0}
+
+  .handle{
+    position:absolute;left:50%;top:calc(var(--drape-top) + 46px);
+    transform:translateX(-50%);
+    z-index:4;
+    width:104px;height:34px;
+    display:flex;align-items:center;justify-content:center;
+    border:0;padding:0;background:none;cursor:grab;
+    touch-action:none;
+  }
+  .handle:active{cursor:grabbing}
+  .handle span{
+    width:44px;height:4px;border-radius:2px;
+    background:rgba(255,255,255,.55);
+    box-shadow:0 0 0 1px rgba(0,0,0,.25);
+  }
+
+  .guide{
+    position:absolute;left:50%;top:20%;transform:translateX(-50%);
+    width:min(56vw,240px);aspect-ratio:3/4;
+    border:1px dashed var(--line-strong);
+    border-radius:50%;
+    z-index:3;pointer-events:none;
+    transition:opacity .25s ease;
+  }
+  .guide.off{opacity:0}
+
+  /* ---------- readout ---------- */
+  .readout{
+    position:absolute;top:0;left:0;right:0;z-index:5;
+    display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+    padding:16px 18px 40px;
+    background:linear-gradient(to bottom,rgba(0,0,0,.62),rgba(0,0,0,0));
+    pointer-events:none;
+  }
+  .readout .name{font-family:var(--serif);font-size:26px;line-height:1.15;letter-spacing:-.01em}
+  .readout .season{
+    margin-top:5px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--fg-dim);
+  }
+  .readout .meta{text-align:right;font-family:var(--mono);font-size:12px;letter-spacing:.02em}
+  .readout .attr{margin-top:5px;font-family:var(--sans);font-size:11.5px;color:var(--fg-dim);letter-spacing:.01em}
+
+  .hint{
+    position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+    z-index:5;pointer-events:none;
+    font-size:11.5px;color:rgba(255,255,255,.72);
+    background:rgba(0,0,0,.4);
+    padding:6px 12px;border-radius:999px;
+    backdrop-filter:blur(6px);
+    white-space:nowrap;
+    transition:opacity .4s ease;
+  }
+  .hint.off{opacity:0}
+
+  /* ---------- console ---------- */
+  .console{
+    flex:none;z-index:6;
+    background:var(--ink);
+    border-top:1px solid var(--line);
+    padding:12px 0 max(12px,env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:11px;
+  }
+  .tabs{display:flex;gap:6px;padding:0 14px}
+  .tab{
+    flex:1;appearance:none;cursor:pointer;
+    background:transparent;color:var(--fg-dim);
+    border:1px solid transparent;border-radius:8px;
+    font-family:var(--sans);font-size:13px;font-weight:400;
+    padding:7px 4px;
+    transition:color .15s ease,background .15s ease;
+  }
+  .tab[aria-selected="true"]{color:var(--fg);background:var(--ink-2);border-color:var(--line)}
+  .tab:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+
+  .strip{
+    display:flex;gap:9px;
+    padding:2px 14px 4px;
+    overflow-x:auto;
+    scrollbar-width:none;
+    scroll-snap-type:x proximity;
+  }
+  .strip::-webkit-scrollbar{display:none}
+  .chip{
+    flex:none;width:44px;height:44px;border-radius:50%;
+    border:1px solid rgba(255,255,255,.22);
+    cursor:pointer;padding:0;
+    scroll-snap-align:center;
+    position:relative;
+    transition:transform .16s ease;
+  }
+  .chip[aria-pressed="true"]{
+    transform:scale(1.06);
+    box-shadow:0 0 0 2px var(--ink),0 0 0 3.5px var(--fg);
+  }
+  .chip:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+  .chip.saved::after{
+    content:"";position:absolute;right:-1px;bottom:-1px;
+    width:11px;height:11px;border-radius:50%;
+    background:var(--fg);border:2px solid var(--ink);
+  }
+
+  .actions{display:flex;gap:8px;padding:0 14px;align-items:center}
+  .btn{
+    appearance:none;cursor:pointer;
+    background:var(--ink-2);color:var(--fg);
+    border:1px solid var(--line);border-radius:9px;
+    font-family:var(--sans);font-size:12.5px;font-weight:400;
+    padding:9px 12px;
+    display:inline-flex;align-items:center;gap:6px;
+    transition:border-color .15s ease,color .15s ease;
+    touch-action:manipulation;
+  }
+  .btn:hover{border-color:var(--line-strong)}
+  .btn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+  .btn[aria-pressed="true"]{border-color:var(--fg)}
+  .btn .num{font-family:var(--mono);font-size:11.5px;color:var(--fg-dim)}
+  .btn.wide{flex:1;justify-content:center}
+  .btn.hold:active{background:#26262b}
+
+  /* ---------- saved sheet ---------- */
+  .sheet{
+    position:absolute;inset:0;z-index:20;
+    background:rgba(8,8,10,.86);
+    backdrop-filter:blur(14px);
+    display:flex;flex-direction:column;
+    padding:22px 20px max(20px,env(safe-area-inset-bottom));
+    gap:16px;overflow-y:auto;
+  }
+  .sheet[hidden]{display:none!important}
+  .sheet h2{font-family:var(--serif);font-size:22px;font-weight:400;margin:0}
+  .sheet .lede{margin:-8px 0 0;font-size:12.5px;line-height:1.65;color:var(--fg-dim);max-width:48ch}
+  .group{display:flex;flex-direction:column;gap:8px}
+  .group h3{
+    margin:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--fg-dim);font-weight:500;
+    display:flex;justify-content:space-between;align-items:baseline;
+  }
+  .group h3 b{font-family:var(--mono);font-weight:400;letter-spacing:0;color:var(--fg)}
+  .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--ink-2)}
+  .bar i{display:block}
+  .savedlist{display:flex;flex-wrap:wrap;gap:7px}
+  .savedlist button{
+    appearance:none;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;
+    background:var(--ink-2);border:1px solid var(--line);
+    border-radius:999px;padding:5px 11px 5px 6px;
+    color:var(--fg);font-family:var(--sans);font-size:12px;
+  }
+  .savedlist button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+  .savedlist i{width:16px;height:16px;border-radius:50%;border:1px solid rgba(255,255,255,.25)}
+  .empty{font-size:12.5px;color:var(--fg-dim)}
+
+  /* ---------- camera fallback ---------- */
+  .fallback{
+    position:absolute;inset:0;z-index:10;
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;text-align:center;padding:28px;
+    background:var(--ink-2);
+  }
+  .stage.blocked .fallback{display:flex}
+  .fallback p{margin:0;font-size:13px;line-height:1.7;color:var(--fg-dim);max-width:34ch}
+  .fallback .t{font-family:var(--serif);font-size:19px;color:var(--fg)}
+  #file{display:none}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+  }
+  @media (min-width:760px){
+    .app{max-width:520px;margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <video id="cam" autoplay playsinline muted></video>
+    <img id="shot" alt="업로드한 사진">
+
+    <div class="guide" id="guide"></div>
+
+    <div class="drape" id="drape">
+      <svg class="neck" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0,0 H27 C34,21 66,21 73,0 H100 V20 H0 Z"></path>
+      </svg>
+      <div class="body"></div>
+    </div>
+    <button class="handle" id="handle" aria-label="드레이프 높이 조절"><span></span></button>
+
+    <div class="readout">
+      <div>
+        <div class="name" id="cName">코랄</div>
+        <div class="season" id="cSeason">Spring Warm</div>
+      </div>
+      <div class="meta">
+        <div id="cHex">#FF7F6E</div>
+        <div class="attr" id="cAttr">밝고 맑은 · 노란기</div>
+      </div>
+    </div>
+
+    <div class="hint" id="hint">좌우로 밀어 색을 넘기세요 · 손잡이를 끌면 드레이프 높이</div>
+
+    <div class="fallback">
+      <div class="t">카메라를 열 수 없어요</div>
+      <p id="fbMsg">브라우저에서 카메라 권한을 허용하거나, 사진 한 장으로 대신 진행할 수 있어요.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <a class="btn" id="openExt" href="#" target="_blank" rel="noopener">브라우저에서 열기</a>
+        <button class="btn" id="retry">다시 시도</button>
+        <button class="btn" id="pick">사진 올리기</button>
+      </div>
+      <input type="file" id="file" accept="image/*">
+    </div>
+  </div>
+
+  <div class="console">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="strip" id="strip"></div>
+    <div class="actions">
+      <button class="btn hold" id="compare">직전 색 비교<span class="num" id="prevHex">—</span></button>
+      <button class="btn" id="guideBtn" aria-pressed="true">가이드</button>
+      <button class="btn wide" id="save">이 색 담기</button>
+      <button class="btn" id="openSaved">담은 색<span class="num" id="savedCount">0</span></button>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet" hidden>
+    <h2>담은 색</h2>
+    <p class="lede">얼굴빛이 맑아 보였던 색만 담으세요. 한 계절에 몰린다면 그쪽이 유력합니다. 다만 조명이 바뀌면 결과도 바뀌니, 다른 날 자연광에서 한 번 더 해보고 겹치는지 확인하세요.</p>
+    <div id="tally"></div>
+    <div class="group">
+      <h3>목록</h3>
+      <div class="savedlist" id="savedList"></div>
+    </div>
+    <div class="actions" style="padding:0">
+      <button class="btn wide" id="closeSheet">돌아가기</button>
+      <button class="btn" id="clearSaved">전체 지우기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var SEASONS = [
+    { key:"spring", ko:"봄 웜", en:"Spring Warm", attr:"밝고 맑은 · 노란기", colors:[
+      {n:"코랄",h:"#FF7F6E"},{n:"피치",h:"#FFB088"},{n:"골든 옐로",h:"#FFD23D"},{n:"애플 그린",h:"#8CC63F"},
+      {n:"아쿠아",h:"#3FC1C9"},{n:"살몬 핑크",h:"#FF8FA3"},{n:"카멜",h:"#D99A5B"},{n:"아이보리",h:"#FFF3D6"}]},
+    { key:"summer", ko:"여름 쿨", en:"Summer Cool", attr:"부드럽고 흐린 · 푸른기", colors:[
+      {n:"라벤더",h:"#B39DDB"},{n:"파우더 블루",h:"#A8C8E8"},{n:"로즈 핑크",h:"#E7A0B8"},{n:"소프트 민트",h:"#9FD8C8"},
+      {n:"그레이시 블루",h:"#7E9AB8"},{n:"모브",h:"#A98BA5"},{n:"소프트 네이비",h:"#4A5D7E"},{n:"라이트 그레이",h:"#D6D3DC"}]},
+    { key:"autumn", ko:"가을 웜", en:"Autumn Warm", attr:"깊고 흐린 · 노란기", colors:[
+      {n:"머스터드",h:"#D4A017"},{n:"테라코타",h:"#C05F3C"},{n:"올리브",h:"#7A8450"},{n:"카키 브라운",h:"#8B6F47"},
+      {n:"펌킨",h:"#C25E27"},{n:"포레스트",h:"#3E5C4B"},{n:"브릭 와인",h:"#8E3B37"},{n:"크림 베이지",h:"#E8D5B0"}]},
+    { key:"winter", ko:"겨울 쿨", en:"Winter Cool", attr:"선명하고 진한 · 푸른기", colors:[
+      {n:"퓨어 화이트",h:"#FFFFFF"},{n:"트루 블랙",h:"#1A1A1A"},{n:"로열 블루",h:"#1E50A2"},{n:"마젠타",h:"#C71585"},
+      {n:"에메랄드",h:"#00876C"},{n:"아이시 핑크",h:"#F2C6D9"},{n:"버건디",h:"#7B1E3A"},{n:"코발트",h:"#2B3A8F"}]}
+  ];
+
+  // flat index across all seasons
+  var FLAT = [];
+  SEASONS.forEach(function(s,si){
+    s.colors.forEach(function(c,ci){ FLAT.push({si:si,ci:ci,n:c.n,h:c.h,s:s}); });
+  });
+
+  var root = document.documentElement;
+  var $ = function(id){ return document.getElementById(id); };
+  var stage=$("stage"), strip=$("strip"), tabs=$("tabs");
+  var idx = 0, prevIdx = null, saved = [], drapeTop = 52;
+
+  try{
+    var raw = localStorage.getItem("drape.saved");
+    if(raw) saved = JSON.parse(raw) || [];
+  }catch(e){ saved = []; }
+
+  function persist(){
+    try{ localStorage.setItem("drape.saved", JSON.stringify(saved)); }catch(e){}
+  }
+
+  /* ---- build controls ---- */
+  SEASONS.forEach(function(s,si){
+    var b=document.createElement("button");
+    b.className="tab"; b.type="button"; b.role="tab"; b.textContent=s.ko;
+    b.addEventListener("click", function(){ setIdx(si*8); });
+    tabs.appendChild(b);
+  });
+
+  FLAT.forEach(function(c,i){
+    var b=document.createElement("button");
+    b.className="chip"; b.type="button";
+    b.style.background=c.h;
+    b.title=c.s.ko+" · "+c.n;
+    b.setAttribute("aria-label", c.s.ko+" "+c.n);
+    b.addEventListener("click", function(){ setIdx(i); });
+    strip.appendChild(b);
+  });
+  var chips = strip.querySelectorAll(".chip");
+  var tabEls = tabs.querySelectorAll(".tab");
+
+  function setIdx(i, keepPrev){
+    var n = FLAT.length;
+    i = ((i % n) + n) % n;
+    if(i === idx) return;
+    if(!keepPrev) prevIdx = idx;
+    idx = i;
+    render();
+    chips[idx].scrollIntoView({block:"nearest", inline:"center", behavior:"smooth"});
+    hideHint();
+  }
+
+  function render(){
+    var c = FLAT[idx];
+    root.style.setProperty("--drape", c.h);
+    $("cName").textContent = c.n;
+    $("cSeason").textContent = c.s.en;
+    $("cHex").textContent = c.h;
+    $("cAttr").textContent = c.s.attr;
+    $("prevHex").textContent = prevIdx===null ? "—" : FLAT[prevIdx].h;
+    for(var i=0;i<chips.length;i++){
+      chips[i].setAttribute("aria-pressed", i===idx ? "true" : "false");
+      chips[i].classList.toggle("saved", saved.indexOf(FLAT[i].h) > -1);
+    }
+    for(var t=0;t<tabEls.length;t++){
+      tabEls[t].setAttribute("aria-selected", t===c.si ? "true" : "false");
+    }
+    $("save").textContent = saved.indexOf(c.h) > -1 ? "담기 취소" : "이 색 담기";
+    $("savedCount").textContent = String(saved.length);
+  }
+
+  /* ---- drape height ---- */
+  function setTop(pct){
+    drapeTop = Math.max(24, Math.min(82, pct));
+    root.style.setProperty("--drape-top", drapeTop + "%");
+  }
+  setTop(drapeTop);
+
+  var dragging=false;
+  var handle=$("handle");
+  handle.addEventListener("pointerdown", function(e){
+    dragging=true; handle.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  handle.addEventListener("pointermove", function(e){
+    if(!dragging) return;
+    var r = stage.getBoundingClientRect();
+    setTop(((e.clientY - r.top - 46) / r.height) * 100);
+    hideHint();
+  });
+  ["pointerup","pointercancel"].forEach(function(ev){
+    handle.addEventListener(ev, function(){ dragging=false; });
+  });
+
+  /* ---- swipe on stage ---- */
+  var sx=null, sy=null;
+  stage.addEventListener("pointerdown", function(e){
+    if(e.target.closest("#handle") || e.target.closest(".fallback")) return;
+    sx=e.clientX; sy=e.clientY;
+  });
+  stage.addEventListener("pointerup", function(e){
+    if(sx===null) return;
+    var dx=e.clientX-sx, dy=e.clientY-sy;
+    sx=null;
+    if(Math.abs(dx) > 42 && Math.abs(dx) > Math.abs(dy)) setIdx(idx + (dx<0 ? 1 : -1));
+  });
+
+  /* ---- keyboard ---- */
+  document.addEventListener("keydown", function(e){
+    if(e.target.tagName==="INPUT") return;
+    if(e.key==="ArrowRight"){ setIdx(idx+1); e.preventDefault(); }
+    else if(e.key==="ArrowLeft"){ setIdx(idx-1); e.preventDefault(); }
+    else if(e.key==="ArrowDown"){ setIdx((FLAT[idx].si+1)*8); e.preventDefault(); }
+    else if(e.key==="ArrowUp"){ setIdx((FLAT[idx].si+3)*8); e.preventDefault(); }
+    else if(e.key===" " && prevIdx!==null && !e.repeat){ flash(true); e.preventDefault(); }
+  });
+  document.addEventListener("keyup", function(e){
+    if(e.key===" ") flash(false);
+  });
+
+  /* ---- hold to compare ---- */
+  var flashing=false;
+  function flash(on){
+    if(prevIdx===null) return;
+    if(on && !flashing){ flashing=true; root.style.setProperty("--drape", FLAT[prevIdx].h); $("cName").textContent = FLAT[prevIdx].n; $("cHex").textContent = FLAT[prevIdx].h; }
+    else if(!on && flashing){ flashing=false; render(); }
+  }
+  var cmp=$("compare");
+  ["pointerdown"].forEach(function(ev){ cmp.addEventListener(ev, function(e){ e.preventDefault(); flash(true); }); });
+  ["pointerup","pointerleave","pointercancel"].forEach(function(ev){ cmp.addEventListener(ev, function(){ flash(false); }); });
+
+  /* ---- guide + hint ---- */
+  var guideOn=true;
+  $("guideBtn").addEventListener("click", function(){
+    guideOn=!guideOn;
+    $("guide").classList.toggle("off", !guideOn);
+    this.setAttribute("aria-pressed", guideOn ? "true" : "false");
+  });
+  var hintTimer = setTimeout(hideHint, 7000);
+  function hideHint(){ clearTimeout(hintTimer); $("hint").classList.add("off"); }
+
+  /* ---- save ---- */
+  $("save").addEventListener("click", function(){
+    var h = FLAT[idx].h, at = saved.indexOf(h);
+    if(at > -1) saved.splice(at,1); else saved.push(h);
+    persist(); render();
+  });
+
+  $("openSaved").addEventListener("click", function(){ renderSheet(); $("sheet").hidden=false; });
+  $("closeSheet").addEventListener("click", function(){ $("sheet").hidden=true; });
+  $("clearSaved").addEventListener("click", function(){ saved=[]; persist(); render(); renderSheet(); });
+
+  function renderSheet(){
+    var tally=$("tally"), list=$("savedList");
+    tally.innerHTML=""; list.innerHTML="";
+    if(!saved.length){
+      var p=document.createElement("div");
+      p.className="empty"; p.textContent="아직 담은 색이 없어요. 색을 넘기다가 얼굴이 화사해 보이는 색에서 ‘이 색 담기’를 누르세요.";
+      list.appendChild(p);
+      return;
+    }
+    var counts = SEASONS.map(function(){ return 0; });
+    saved.forEach(function(h){
+      var f = FLAT.filter(function(c){ return c.h===h; })[0];
+      if(f) counts[f.si]++;
+    });
+    var g=document.createElement("div");
+    g.className="group";
+    var h3=document.createElement("h3");
+    h3.innerHTML='<span>계절 분포</span><b>'+saved.length+'색</b>';
+    g.appendChild(h3);
+    var bar=document.createElement("div");
+    bar.className="bar";
+    SEASONS.forEach(function(s,si){
+      if(!counts[si]) return;
+      var i=document.createElement("i");
+      i.style.width=(counts[si]/saved.length*100)+"%";
+      i.style.background=s.colors[0].h;
+      i.title=s.ko+" "+counts[si];
+      bar.appendChild(i);
+    });
+    g.appendChild(bar);
+    var legend=document.createElement("div");
+    legend.style.cssText="display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--fg-dim)";
+    SEASONS.forEach(function(s,si){
+      var sp=document.createElement("span");
+      sp.textContent=s.ko+" "+counts[si];
+      if(counts[si] && counts[si]===Math.max.apply(null,counts)) sp.style.color="var(--fg)";
+      legend.appendChild(sp);
+    });
+    g.appendChild(legend);
+    tally.appendChild(g);
+
+    saved.forEach(function(h){
+      var f = FLAT.filter(function(c){ return c.h===h; })[0];
+      if(!f) return;
+      var b=document.createElement("button");
+      b.type="button";
+      b.innerHTML='<i style="background:'+h+'"></i>'+f.n;
+      b.addEventListener("click", function(){
+        setIdx(FLAT.indexOf(f));
+        $("sheet").hidden=true;
+      });
+      list.appendChild(b);
+    });
+  }
+
+  /* ---- camera ---- */
+  var video=$("cam");
+  function startCam(){
+    stage.classList.remove("blocked");
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      return fail("이 브라우저에서는 카메라를 쓸 수 없어요. 사진 한 장으로 대신 진행할 수 있어요.");
+    }
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode:"user", width:{ideal:1280}, height:{ideal:960} }, audio:false })
+      .then(function(s){ stage.classList.remove("photo"); video.srcObject=s; })
+      .catch(function(err){
+        var framed = false;
+        try{ framed = window.top !== window.self; }catch(e){ framed = true; }
+        fail(err && err.name==="NotAllowedError"
+          ? (framed
+              ? "앱 안의 미리보기에서는 카메라가 막혀 있어요. ‘브라우저에서 열기’로 Chrome이나 삼성 인터넷에서 열면 권한을 물어봅니다."
+              : "카메라 권한이 거부됐어요. 주소창 왼쪽 자물쇠 → 권한 → 카메라를 허용하고 ‘다시 시도’를 누르세요.")
+          : "카메라를 찾지 못했어요. 사진 한 장으로 대신 진행할 수 있어요.");
+      });
+  }
+  function fail(msg){ $("fbMsg").textContent=msg; stage.classList.add("blocked"); }
+
+  $("retry").addEventListener("click", startCam);
+  $("openExt").href = location.href;
+  try{ if(window.top === window.self) $("openExt").hidden = true; }catch(e){}
+  $("pick").addEventListener("click", function(){ $("file").click(); });
+  $("file").addEventListener("change", function(){
+    var f=this.files && this.files[0];
+    if(!f) return;
+    $("shot").src=URL.createObjectURL(f);
+    stage.classList.add("photo");
+    stage.classList.remove("blocked");
+  });
+
+  render();
+  startCam();
+})();
+</script>
+
+</body>
+</html>
