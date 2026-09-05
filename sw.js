@@ -1,7 +1,7 @@
 /* 드레이프 미러 — service worker
    앱 껍데기(index, manifest, 아이콘)는 캐시에서 먼저 열고,
    새 버전이 올라오면 다음 실행 때 자동으로 바뀝니다. */
-var VERSION = "drape-v1";
+var VERSION = "drape-v2";
 var SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
 
 self.addEventListener("install", function (e) {
