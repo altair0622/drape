@@ -1,0 +1,19 @@
+{
+  "name": "드레이프 미러",
+  "short_name": "드레이프",
+  "description": "라이브 카메라로 4계절 드레이프 색을 얼굴에 대보는 퍼스널컬러 도구",
+  "id": "/drape/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0D0D0F",
+  "theme_color": "#0D0D0F",
+  "lang": "ko",
+  "categories": ["beauty", "lifestyle", "utilities"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
