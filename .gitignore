@@ -1,1 +1,4 @@
 drape-pwa.zip
+*.keystore
+*.jks
+signing-key-info.txt
